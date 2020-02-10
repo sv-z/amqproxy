@@ -19,6 +19,7 @@ func init() {
 type Config struct {
 	BindAddr string
 	BindPort int
+	LogLevel string
 }
 
 // Create new app config
@@ -37,8 +38,14 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf(`parameter "PROXY_CONNECTION_PORT" must be integer`)
 	}
 
+	logLevel, exists := os.LookupEnv("LOG_LEVEL")
+	if !exists {
+		logLevel = "error"
+	}
+
 	return &Config{
 		BindAddr: proxyHost,
 		BindPort: proxyPort,
+		LogLevel: logLevel,
 	}, nil
 }
