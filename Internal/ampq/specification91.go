@@ -2,6 +2,7 @@ package ampq
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 )
 
@@ -58,42 +59,35 @@ func (s Specification91) check(hello []byte) bool {
 }
 
 func (sp *Specification91) SendResponseConnectionStart() bool {
-	lenMechanisms, bytesMechanisms := prepareLongStr(sp.mechanisms)
-	lenLocales, bytesLocales := prepareLongStr(sp.locales)
 
-	/*
-		{
-			"capabilities": {
-				"authentication_failure_close": true,
-				"basic.nack": true,
-				"connection.blocked": true,
-				"consumer_cancel_notify": true,
-				"consumer_priorities": true,
-				"direct_reply_to": true,
-				"exchange_exchange_bindings": true,
-				"per_consumer_qos": true,
-				"publisher_confirms": true
-			},
-			"cluster_name": "rabbit@rabbit",
-			"copyright": "Copyright (c) 2007-2019 Pivotal Software, Inc.",
-			"information": "Licensed under the MPL 1.1. Website: https://rabbitmq.com",
-			"platform": "Erlang/OTP 22.2.4",
-			"product": "RabbitMQ",
-			"version": "3.8.2"
-		}
-	*/
+	args := Table{
+		"capabilities": Table{
+			"consumer_priorities":          true,
+			"authentication_failure_close": true,
+			"direct_reply_to":              true,
+			"publisher_confirms":           true,
+			"exchange_exchange_bindings":   true,
+			"basic.nack":                   true,
+			"consumer_cancel_notify":       true,
+			"connection.blocked":           true,
+			"per_consumer_qos":             true,
+		},
+		"cluster_name": "rabbit@rabbit",
+		"copyright":    "Copyright (c) 2007-2019 Pivotal Software, Inc.",
+		"information":  "Licensed under the MPL 1.1. Website: https://rabbitmq.com",
+		"platform":     "Erlang/OTP 22.2.4",
+		"product":      "RabbitMQ",
+		"version":      "3.8.2",
+	}
 
 	payload := prepareMethod(
 		uint16(10), //class,
 		uint16(10), //method,
 		sp.versionMajor,
 		sp.versionMinor,
-		// sp.mechanisms
-		lenMechanisms,
-		bytesMechanisms,
-		// sp.locales
-		lenLocales,
-		bytesLocales,
+		mapToByte(args),
+		longStrToByte(sp.mechanisms),
+		longStrToByte(sp.locales),
 	)
 	if payload == nil {
 		return false
@@ -106,11 +100,33 @@ func (sp *Specification91) WaitConnectionStartOk() bool {
 	return false
 }
 
-// see writeLongstr in doc
-func prepareLongStr(str string) (uint32, []byte) {
+func longStrToByte(str string) []byte {
 	b := []byte(str)
-
 	var length = uint32(len(b))
+	var buf bytes.Buffer
 
-	return length, b[:length]
+	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
+		panic(err)
+	}
+
+	if _, err := buf.Write(b[:length]); err != nil {
+		panic(err)
+	}
+
+	return buf.Bytes()
+}
+
+func mapToByte(table Table) []byte {
+	var buf bytes.Buffer
+
+	for key, val := range table {
+		if err := writeShortstr(&buf, key); err != nil {
+			panic(err)
+		}
+		if err := writeField(&buf, val); err != nil {
+			panic(err)
+		}
+	}
+
+	return longStrToByte(string(buf.Bytes()))
 }

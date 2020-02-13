@@ -70,6 +70,4 @@ func handleRequest(conn net.Conn) {
 	if !sp.WaitConnectionStartOk() {
 		logger.Error("Clients request \"connection.start­ok\" not received.")
 	}
-
-	// ~/proj/home/go-lang/server
 }
