@@ -2,66 +2,31 @@ package ampq
 
 import (
 	"bytes"
-	"encoding/binary"
+	transfer "github.com/sv-z/amqproxy/Internal/ampq/data-transfer"
+	"github.com/sv-z/amqproxy/Internal/ampq/spec091"
 	"io"
-)
-
-const (
-	frameMethod        = 1
-	frameHeader        = 2
-	frameBody          = 3
-	frameHeartbeat     = 8
-	frameMinSize       = 4096
-	frameEnd           = 206 // "\xCE"
-	replySuccess       = 200
-	ContentTooLarge    = 311
-	NoRoute            = 312
-	NoConsumers        = 313
-	ConnectionForced   = 320
-	InvalidPath        = 402
-	AccessRefused      = 403
-	NotFound           = 404
-	ResourceLocked     = 405
-	PreconditionFailed = 406
-	FrameError         = 501
-	SyntaxError        = `502`
-	CommandInvalid     = 503
-	ChannelError       = 504
-	UnexpectedFrame    = 505
-	ResourceError      = 506
-	NotAllowed         = 530
-	NotImplemented     = 540
-	InternalError      = 541
 )
 
 func newSpecification91(readWriter io.ReadWriter) *Specification91 {
 	sp := &Specification91{
-		readWriter:   readWriter,
-		versionMajor: byte(0),
-		versionMinor: byte(9),
-		locales:      "en_US",
-		mechanisms:   "PLAIN",
+		spec091.NewSpec091(readWriter),
 	}
 
 	return sp
 }
 
 type Specification91 struct {
-	readWriter   io.ReadWriter
-	versionMajor byte
-	versionMinor byte
-	locales      string
-	mechanisms   string
+	*spec091.Spec
 }
 
 func (s Specification91) check(hello []byte) bool {
 	return bytes.Compare(hello, []byte{'A', 'M', 'Q', 'P', 0, 0, 9, 1}) == 0
 }
 
-func (sp *Specification91) SendResponseConnectionStart() bool {
+func (sp *Specification91) SendConnectionStart() bool {
 
-	args := Table{
-		"capabilities": Table{
+	args := transfer.Table{
+		"capabilities": transfer.Table{
 			"consumer_priorities":          true,
 			"authentication_failure_close": true,
 			"direct_reply_to":              true,
@@ -80,53 +45,38 @@ func (sp *Specification91) SendResponseConnectionStart() bool {
 		"version":      "3.8.2",
 	}
 
-	payload := prepareMethod(
-		uint16(10), //class,
-		uint16(10), //method,
-		sp.versionMajor,
-		sp.versionMinor,
-		mapToByte(args),
-		longStrToByte(sp.mechanisms),
-		longStrToByte(sp.locales),
-	)
-	if payload == nil {
-		return false
-	}
-
-	return writeFrame(sp.readWriter, frameMethod, 0, payload) == nil
+	return sp.PushConnectionStart(&args)
 }
 
-func (sp *Specification91) WaitConnectionStartOk() bool {
-	return false
-}
-
-func longStrToByte(str string) []byte {
-	b := []byte(str)
-	var length = uint32(len(b))
-	var buf bytes.Buffer
-
-	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
+func (sp *Specification91) ReceiveConnectionStartOk() bool {
+	if _, err := sp.PullConnectionStartOk(); err != nil {
 		panic(err)
 	}
 
-	if _, err := buf.Write(b[:length]); err != nil {
+	return true
+}
+
+func (sp *Specification91) SendConnectionTune() bool {
+	return sp.PushConnectionTune()
+}
+
+func (sp *Specification91) ReceiveConnectionTuneOK() bool {
+	if _, err := sp.PullConnectionTuneOK(); err != nil {
 		panic(err)
 	}
 
-	return buf.Bytes()
+	return true
 }
 
-func mapToByte(table Table) []byte {
-	var buf bytes.Buffer
-
-	for key, val := range table {
-		if err := writeShortstr(&buf, key); err != nil {
-			panic(err)
-		}
-		if err := writeField(&buf, val); err != nil {
-			panic(err)
-		}
+func (sp *Specification91) ReceiveConnectionOpen() bool {
+	if _, err := sp.PullConnectionOpen(); err != nil {
+		panic(err)
 	}
 
-	return longStrToByte(string(buf.Bytes()))
+	return true
+}
+
+func (sp *Specification91) SendConnectionOpenOK() bool {
+
+	return sp.PushConnectionOpenOK()
 }

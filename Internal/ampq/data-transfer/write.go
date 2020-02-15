@@ -1,4 +1,4 @@
-package ampq
+package data_transfer
 
 import (
 	"bytes"
@@ -9,43 +9,54 @@ import (
 	"time"
 )
 
-type Table map[string]interface{}
+func LongStrToByte(str string) []byte {
+	b := []byte(str)
+	var length = uint32(len(b))
+	var buf bytes.Buffer
 
-// Decimal matches the AMQP decimal type.  Scale is the number of decimal
-// digits Scale == 2, Value == 12345, Decimal == 123.45
-type Decimal struct {
-	Scale uint8
-	Value int32
+	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
+		panic(err)
+	}
+
+	if _, err := buf.Write(b[:length]); err != nil {
+		panic(err)
+	}
+
+	return buf.Bytes()
 }
 
-func writeFrame(w io.Writer, typ uint8, channel uint16, payload []byte) (err error) {
-	end := []byte{frameEnd}
-	size := uint(len(payload))
+func ShortStrToByte(str string) []byte {
+	b := []byte(str)
+	var length = uint8(len(b))
+	var buf bytes.Buffer
 
-	_, err = w.Write([]byte{
-		byte(typ),
-		byte((channel & 0xff00) >> 8),
-		byte((channel & 0x00ff) >> 0),
-		byte((size & 0xff000000) >> 24),
-		byte((size & 0x00ff0000) >> 16),
-		byte((size & 0x0000ff00) >> 8),
-		byte((size & 0x000000ff) >> 0),
-	})
-
-	if err != nil {
-		return
+	if err := binary.Write(&buf, binary.BigEndian, length); err != nil {
+		panic(err)
 	}
 
-	if _, err = w.Write(payload); err != nil {
-		return
+	if _, err := buf.Write(b[:length]); err != nil {
+		panic(err)
 	}
 
-	if _, err = w.Write(end); err != nil {
-		return
-	}
-
-	return
+	return buf.Bytes()
 }
+
+func MapToByte(table Table) []byte {
+	var buf bytes.Buffer
+
+	for key, val := range table {
+		if err := writeShortstr(&buf, key); err != nil {
+			panic(err)
+		}
+		if err := writeField(&buf, val); err != nil {
+			panic(err)
+		}
+	}
+
+	return LongStrToByte(string(buf.Bytes()))
+}
+
+// --------------------------------------------------------------------------
 
 func writeShortstr(w io.Writer, s string) (err error) {
 	b := []byte(s)
