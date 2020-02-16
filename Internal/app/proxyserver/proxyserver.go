@@ -55,51 +55,10 @@ func handleRequest(conn net.Conn) {
 		logger.Debug(fmt.Sprintf("----- ==== Stop connection [%s] ==== -----", requestId))
 	}()
 
-	//    Connection          = open-Connection *use-Connection close-Connection
-	//    open-Connection     = C:protocol-header
-	//                          S:START C:START-OK
-	//                          *challenge
-	//                          S:TUNE C:TUNE-OK
-	//                          C:OPEN S:OPEN-OK
-	//    challenge           = S:SECURE C:SECURE-OK
-	//    use-Connection      = *channel
-	//    close-Connection    = C:CLOSE S:CLOSE-OK
-	//                        / S:CLOSE C:CLOSE-OK
-
-	err, sp := ampq.GetSpecification(conn)
-	if err != nil {
-		logger.Error(fmt.Sprintf("The %s", err))
+	ampqConn := ampq.NewConnection(conn)
+	if err := ampqConn.Open(); err != nil {
+		logger.Error(err)
 		return
 	}
-	logger.Debug(fmt.Sprintf("----- ==== C:protocol-header [%s] ==== -----", requestId))
-
-	if !sp.SendConnectionStart() {
-		logger.Error("Cannot send response \"connection.start\".")
-		return
-	}
-	logger.Debug(fmt.Sprintf("----- ==== S:START [%s] ==== -----", requestId))
-
-	if !sp.ReceiveConnectionStartOk() {
-		logger.Error("Clients request \"connection.start­ok\" not received.")
-	}
-	logger.Debug(fmt.Sprintf("----- ==== C:START-OK [%s] ==== -----", requestId))
-
-	if !sp.SendConnectionTune() {
-		logger.Error("Clients request \"S:TUNE\" not received.")
-	}
-	logger.Debug(fmt.Sprintf("----- ==== S:TUNE [%s] ==== -----", requestId))
-
-	if !sp.ReceiveConnectionTuneOK() {
-		logger.Error("Clients request \"C:TUNE-OK\" not received.")
-	}
-	logger.Debug(fmt.Sprintf("----- ==== S:TUNE [%s] ==== -----", requestId))
-
-	if !sp.ReceiveConnectionOpen() {
-		logger.Error("Clients request \" C:OPEN\" not received.")
-	}
-
-	if !sp.SendConnectionOpenOK() {
-		logger.Error("Clients request \"S:OPEN-OK\" not received.")
-	}
-	logger.Debug(fmt.Sprintf("----- ==== S:OPEN-OK [%s] ==== -----", requestId))
+	logger.Debug(fmt.Sprintf("----- ==== AMPQ Connected [%s] ==== -----", requestId))
 }

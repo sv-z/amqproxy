@@ -6,9 +6,9 @@ import (
 	"io"
 )
 
-func NewSpec091(readWriter io.ReadWriter) *Spec {
+func NewSpec091(readWriter *io.ReadWriter) *Spec {
 	return &Spec{
-		readWriter:   readWriter,
+		readWriter:   *readWriter,
 		versionMajor: byte(0),
 		versionMinor: byte(9),
 		locales:      "en_US",
